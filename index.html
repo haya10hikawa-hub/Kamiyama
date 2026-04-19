@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>割り勘くん | 共同購入バックグラウンド処理システム</title>
+    <meta
+      name="description"
+      content="Slack・n8n・Google Sheets・Webhookを用いて、共同購入の集金確認と購入催促を自動化する『割り勘くん』の紹介ページ。"
+    />
+    <style>
+      :root {
+        --bg: #f3f3f1;
+        --paper: #ffffff;
+        --ink: #111111;
+        --sub: #4b4b4b;
+        --line: #cfcfcf;
+        --accent: #2f2f2f;
+        --accent-2: #5f5f5f;
+        --accent-3: #8c8c8c;
+        --ok: #2f2f2f;
+        --warn: #4a4a4a;
+        --shadow: 0 16px 34px rgba(0, 0, 0, 0.05);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Hiragino Sans", "Yu Gothic", sans-serif;
+        color: var(--ink);
+        background:
+          linear-gradient(180deg, #f6f6f4 0%, #efefec 100%);
+        line-height: 1.7;
+      }
+
+      a {
+        color: var(--accent);
+      }
+
+      .container {
+        width: min(1100px, calc(100% - 32px));
+        margin: 0 auto;
+      }
+
+      .hero {
+        padding: 72px 0 40px;
+      }
+
+      .hero-card {
+        background: linear-gradient(180deg, #1f1f1f, #3a3a3a);
+        color: #fff;
+        border-radius: 28px;
+        padding: 40px;
+        box-shadow: var(--shadow);
+        position: relative;
+        overflow: hidden;
+      }
+
+      .hero-card::after {
+        content: "";
+        position: absolute;
+        width: 260px;
+        height: 260px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.08);
+        right: -70px;
+        top: -90px;
+      }
+
+      .eyebrow {
+        display: inline-block;
+        margin-bottom: 16px;
+        padding: 8px 12px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.1);
+        font-size: 14px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+      }
+
+      h1,
+      h2,
+      h3 {
+        line-height: 1.2;
+        margin: 0 0 16px;
+        text-wrap: balance;
+      }
+
+      h1 {
+        font-size: clamp(34px, 6vw, 62px);
+        max-width: 12ch;
+      }
+
+      h2 {
+        font-size: clamp(28px, 4vw, 42px);
+      }
+
+      h3 {
+        font-size: 22px;
+      }
+
+      p,
+      li,
+      code,
+      pre {
+        font-size: 16px;
+        word-break: normal;
+        overflow-wrap: normal;
+        line-break: strict;
+      }
+
+      .hero-grid {
+        display: grid;
+        grid-template-columns: 1.2fr 0.8fr;
+        gap: 24px;
+        align-items: end;
+        position: relative;
+        z-index: 1;
+      }
+
+      .hero-copy p {
+        max-width: 58ch;
+        color: rgba(255, 255, 255, 0.9);
+      }
+
+      .hero-stats {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 14px;
+      }
+
+      .stat {
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 20px;
+        padding: 18px;
+        backdrop-filter: blur(6px);
+      }
+
+      .stat strong {
+        display: block;
+        font-size: 28px;
+        margin-bottom: 4px;
+      }
+
+      section {
+        padding: 36px 0;
+      }
+
+      .section-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        align-items: end;
+        margin-bottom: 20px;
+      }
+
+      .section-head p {
+        color: var(--sub);
+        max-width: 54ch;
+        margin: 0;
+      }
+
+      .grid-2,
+      .grid-3 {
+        display: grid;
+        gap: 20px;
+      }
+
+      .grid-2 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .grid-3 {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .card {
+        background: var(--paper);
+        border: 1px solid var(--line);
+        border-radius: 24px;
+        padding: 24px;
+        box-shadow: var(--shadow);
+      }
+
+      .pill {
+        display: inline-block;
+        font-weight: 700;
+        font-size: 13px;
+        border-radius: 999px;
+        padding: 6px 10px;
+        margin-bottom: 12px;
+      }
+
+      .pill.problem {
+        background: #ededed;
+        color: #333333;
+      }
+
+      .pill.solution {
+        background: #ececec;
+        color: #222222;
+      }
+
+      .pill.tech {
+        background: #ececec;
+        color: #222222;
+      }
+
+      .problem-list,
+      .point-list {
+        padding-left: 18px;
+        margin: 0;
+      }
+
+      .metric {
+        display: grid;
+        grid-template-columns: 170px 1fr 56px;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 12px;
+      }
+
+      .bar {
+        height: 14px;
+        background: #e6e6e6;
+        border-radius: 999px;
+        overflow: hidden;
+      }
+
+      .fill {
+        height: 100%;
+        border-radius: inherit;
+      }
+
+      .fill.before {
+        background: linear-gradient(90deg, #9d9d9d, #c8c8c8);
+      }
+
+      .fill.after {
+        background: linear-gradient(90deg, #2d2d2d, #6a6a6a);
+      }
+
+      .report-diagram-wrap {
+        border: 1px solid #d8d8d8;
+        background: #fcfcfc;
+        padding: 24px;
+      }
+
+      .report-diagram-title {
+        margin-bottom: 14px;
+        font-size: 14px;
+        color: var(--sub);
+      }
+
+      .minimal-flow {
+        display: grid;
+        gap: 18px;
+      }
+
+      .minimal-node {
+        min-height: 92px;
+        border: 1.5px solid #222;
+        background: #f2f2f2;
+        display: grid;
+        place-items: center;
+        text-align: center;
+        padding: 16px 12px;
+      }
+
+      .minimal-node strong {
+        display: block;
+        font-size: 20px;
+        margin-bottom: 6px;
+      }
+
+      .minimal-node span {
+        display: block;
+        font-size: 14px;
+        line-height: 1.5;
+        color: #333;
+      }
+
+      .minimal-arrow {
+        display: grid;
+        justify-items: center;
+        gap: 0;
+      }
+
+      .minimal-arrow-line {
+        width: 2px;
+        height: 34px;
+        background: #222;
+      }
+
+      .minimal-arrow-head {
+        width: 0;
+        height: 0;
+        border-left: 6px solid transparent;
+        border-right: 6px solid transparent;
+        border-top: 10px solid #222;
+      }
+
+      .minimal-label {
+        font-size: 13px;
+        color: #555;
+        text-align: center;
+        margin-top: 6px;
+      }
+
+      .node {
+        position: relative;
+        border-radius: 18px;
+        padding: 18px 14px;
+        background: #fff;
+        border: 1px solid var(--line);
+        text-align: center;
+        min-height: 92px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+      }
+
+      .node.accent {
+        background: rgba(0, 0, 0, 0.04);
+        border-color: rgba(0, 0, 0, 0.18);
+      }
+
+      .node.warn {
+        background: rgba(0, 0, 0, 0.06);
+        border-color: rgba(0, 0, 0, 0.22);
+      }
+
+      .arrow {
+        text-align: center;
+        color: var(--sub);
+        font-weight: 700;
+      }
+
+      .flow-list {
+        display: grid;
+        gap: 12px;
+      }
+
+      .flow-step {
+        display: grid;
+        grid-template-columns: 48px 1fr;
+        gap: 14px;
+        align-items: start;
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        padding: 14px;
+      }
+
+      .step-num {
+        width: 48px;
+        height: 48px;
+        border-radius: 14px;
+        display: grid;
+        place-items: center;
+        background: #1f1f1f;
+        color: #fff;
+        font-weight: 800;
+      }
+
+      pre {
+        background: #151515;
+        color: #f8f8f2;
+        padding: 18px;
+        border-radius: 18px;
+        overflow-x: auto;
+        margin: 0;
+      }
+
+      .shot {
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: #fafafa;
+        overflow: hidden;
+      }
+
+      .shot img {
+        display: block;
+        width: 100%;
+        height: auto;
+        background: #fff;
+      }
+
+      .shot-body {
+        padding: 14px 16px 18px;
+      }
+
+      .shot-body strong {
+        display: block;
+        margin-bottom: 6px;
+        font-size: 16px;
+      }
+
+      .shot-body p {
+        margin: 0;
+        color: var(--sub);
+      }
+
+      .footer {
+        padding: 28px 0 60px;
+        color: var(--sub);
+      }
+
+      .tag-row {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      .tag {
+        padding: 8px 12px;
+        border-radius: 999px;
+        background: #ececec;
+        color: #333333;
+        font-weight: 700;
+        font-size: 14px;
+      }
+
+      .hero-stats,
+      .grid-2,
+      .grid-3,
+      .tag-row {
+        grid-template-columns: 1fr;
+      }
+
+      .hero-stats {
+        max-width: 420px;
+      }
+
+      .tag-row {
+        display: grid;
+        gap: 10px;
+      }
+
+      .tag {
+        border-radius: 10px;
+      }
+
+      @media (max-width: 900px) {
+        .hero-grid,
+        .grid-2,
+        .grid-3,
+        .metric {
+          grid-template-columns: 1fr;
+        }
+
+        .section-head {
+          display: block;
+        }
+
+      }
+      .hero {
+        padding: 72px 0 40px;
+      }
+
+      .hero-grid {
+        grid-template-columns: 1.2fr 0.8fr;
+        align-items: end;
+      }
+
+      .hero-copy p {
+        max-width: 58ch;
+      }
+
+      .title-row {
+        display: block;
+        margin-bottom: 0;
+      }
+
+      .title-row h1 {
+        margin: 0 0 16px;
+        white-space: normal;
+      }
+
+      .title-sub {
+        display: none;
+      }
+
+      .eyebrow {
+        display: inline-block;
+      }
+
+      @media (max-width: 900px) {
+        .hero-grid {
+          grid-template-columns: 1fr;
+          align-items: start;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="hero">
+      <div class="container">
+        <div class="hero-card">
+          <div class="hero-grid">
+            <div class="hero-copy">
+              <div class="eyebrow">共同購入を自動化するバックグラウンド処理システム</div>
+              <div class="title-row">
+                <h1>割り勘くん</h1>
+              </div>
+              <p>
+                  共同購入で発生する「希望数の集計」「送金依頼DM」「入金確認」「購入催促」を、n8n・Slack・Google Sheets・Webhook を組み合わせて自動化する。
+              </p>
+              <p>
+                  共同購入で発生する「希望数の集計」「送金依頼DM」「入金確認」「購入催促」を、n8n・Slack・Google Sheets・Webhook を組み合わせて自動化する。
+              </p>
+            </div>
+            <div class="hero-stats">
+              <div class="stat">
+                <strong>4段階</strong>
+                <span>希望受付から購入催促までの自動処理</span>
+              </div>
+              <div class="stat">
+                <strong>Slack</strong>
+                <span>利用者が普段使う場で完結</span>
+              </div>
+              <div class="stat">
+                <strong>状態管理</strong>
+                <span>Sheets 上のステータス管理による再実行耐性</span>
+              </div>
+              <div class="stat">
+                <strong>MVP</strong>
+                <span>超過対応を追加すれば公開可能な段階</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section>
+        <div class="container">
+          <div class="section-head">
+            <div>
+              <h2>1. 解決したい課題</h2>
+              <p>
+                共同購入では、主催者が希望者ごとの個数と支払い状況を追跡し続ける必要があり、少人数でも運用コストが高くなります。
+              </p>
+            </div>
+          </div>
+          <div class="grid-2">
+            <article class="card">
+              <div class="pill problem">課題提起</div>
+              <ul class="problem-list">
+                <li>希望者の個数集計を手作業で行う必要がある</li>
+                <li>各希望者への送金依頼DMを個別に送るのが面倒</li>
+                <li>誰が払ったかを Slack スレッドだけで管理しづらい</li>
+                <li>全員の支払い完了後に主催者へ購入催促するのが煩雑</li>
+              </ul>
+            </article>
+            <article class="card">
+              <div class="pill solution">解決方針</div>
+              <p>
+                主催者と参加者の手作業を減らすことを優先し、UIを増やさず Slack 上で完結する構成にした。データ処理と状態管理は n8n と Google Sheets が担当する。
+              </p>
+              <p>
+                  既存の運用フローを変えずに、送金依頼・支払い確認・購入催促を自動化し、確認作業の回数を減らす。
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div class="container">
+          <div class="section-head">
+            <div>
+              <h2>2. システム構成</h2>
+              <p>処理の流れごとに整理した構成。</p>
+            </div>
+          </div>
+          <div class="card">
+            <div class="report-diagram-title">図1. 割り勘くんのシステムフロー図</div>
+            <div class="report-diagram-wrap">
+              <div class="minimal-flow">
+                <div class="minimal-node">
+                  <div>
+                    <strong>Slack入力</strong>
+                    <span>フォームまたはスレッドで希望情報を受け付ける</span>
+                  </div>
+                </div>
+                <div class="minimal-arrow">
+                  <div class="minimal-arrow-line"></div>
+                  <div class="minimal-arrow-head"></div>
+                  <div class="minimal-label">希望情報を受理</div>
+                </div>
+                <div class="minimal-node">
+                  <div>
+                    <strong>集計・分岐</strong>
+                    <span>n8n が管理ID単位で整形し、通常処理と例外処理を分ける</span>
+                  </div>
+                </div>
+                <div class="minimal-arrow">
+                  <div class="minimal-arrow-line"></div>
+                  <div class="minimal-arrow-head"></div>
+                  <div class="minimal-label">更新対象を決定</div>
+                </div>
+                <div class="minimal-node">
+                  <div>
+                    <strong>Google Sheets</strong>
+                    <span>希望者DBと商品DBにステータスを記録する</span>
+                  </div>
+                </div>
+                <div class="minimal-arrow">
+                  <div class="minimal-arrow-line"></div>
+                  <div class="minimal-arrow-head"></div>
+                  <div class="minimal-label">処理結果を反映</div>
+                </div>
+                <div class="minimal-node">
+                  <div>
+                    <strong>Slack通知</strong>
+                    <span>必要な相手にのみ DM を送信する</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div class="container">
+          <div class="section-head">
+            <div>
+              <h2>3. 通常フロー</h2>
+              <p>共同購入の進行をステータスで管理する構成にしている。</p>
+            </div>
+          </div>
+          <div class="flow-list">
+            <div class="flow-step">
+              <div class="step-num">1</div>
+              <div>
+                <strong>希望受付</strong>
+                <p>Slack の入力内容を受け取り、「管理ID」 と希望者データを生成する。</p>
+              </div>
+            </div>
+            <div class="flow-step">
+              <div class="step-num">2</div>
+              <div>
+                <strong>希望者ごとに展開</strong>
+                <p>各希望者に対して DM 用の1レコードへ分解し、「希望者管理ID」 を付与する。</p>
+              </div>
+            </div>
+            <div class="flow-step">
+              <div class="step-num">3</div>
+              <div>
+                <strong>DM 送信と status 更新</strong>
+                <p>送金依頼DMを送り、希望者DBの「ステータス」を「dm sent」に更新する。</p>
+              </div>
+            </div>
+            <div class="flow-step">
+              <div class="step-num">4</div>
+              <div>
+                <strong>送金済みボタン受信</strong>
+                <p>Slack の Block Actions から Webhook に payload が届き、該当希望者の「ステータス」を「payment done」に変更する。</p>
+              </div>
+            </div>
+            <div class="flow-step">
+              <div class="step-num">5</div>
+              <div>
+                <strong>全員完了判定</strong>
+                <p>同じ「管理ID」の希望者が全員「payment done」になったら、主催者へ購入依頼DMを送る。</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div class="container">
+          <div class="section-head">
+            <div>
+              <h2>4. なぜステータス管理にしたか</h2>
+              <p>
+                Google Sheets の行番号や Loop ノードの処理順に依存すると、n8n ではデータ重複や誤更新が起きやすい。
+                そのため、識別子とステータスで管理する方針に切り替えた。
+              </p>
+            </div>
+          </div>
+          <div class="grid-3">
+            <article class="card">
+              <div class="pill tech">識別子設計</div>
+              <p>「管理ID」は商品案件単位、「希望者管理ID」は「管理ID + ユーザーID」として設計した。</p>
+            </article>
+            <article class="card">
+              <div class="pill tech">更新の安全性</div>
+              <p>行番号ではなく識別子で一致させることで、並び順が変わっても更新対象を見失わない。</p>
+            </article>
+            <article class="card">
+              <div class="pill tech">再送防止</div>
+              <p>「ステータス」を参照することで、DM 送信済みや購入催促済みの案件を再実行時に除外できる。</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div class="container">
+          <div class="section-head">
+            <div>
+              <h2>5. JavaScript Node の主要コード</h2>
+              <p>バックグラウンド処理の核になっている代表コードを抜粋して示す。</p>
+            </div>
+          </div>
+          <div class="grid-2">
+            <article class="card">
+              <h3>希望者ごとの DM 展開</h3>
+              <p>
+                商品単位のデータから、DM送信用の希望者レコードへ展開する。
+                この段階で「希望者管理ID」も持たせる。
+              </p>
+              <pre><code>const items = $input.all();
+const results = [];
+
+for (const item of items) {
+  const data = item.json;
+  const product = data["商品"] ?? {};
+  const applicants = data["希望者一覧"] ?? [];
+
+  for (const person of applicants) {
+    const userId = person["ユーザーID"];
+    if (!userId) continue;
+
+    results.push({
+      json: {
+        管理ID: data["管理ID"],
+        希望者管理ID: `${data["管理ID"]}${userId}`,
+        宛先ユーザーID: userId,
+        商品名: product["商品名"] ?? null,
+        希望者支払額: Number(person["支払額"] ?? 0),
+      }
+    });
+  }
+}
+
+return results;</code></pre>
+            </article>
+            <article class="card">
+              <h3>Webhook payload の解析</h3>
+              <p>
+                Slack のボタン押下から「希望者管理ID」を取り出し、
+                Sheets 更新用のデータへ変換する。
+              </p>
+              <pre><code>const raw = $json.body?.payload ?? $json.payload;
+const payload = typeof raw === "string" ? JSON.parse(raw) : raw;
+
+const action = payload.actions?.[0] ?? {};
+
+return [
+  {
+    json: {
+      actionId: action.action_id ?? null,
+      希望者管理ID: action.value ?? null,
+      送金報告ユーザーID: payload.user?.id ?? null,
+      actionTs: action.action_ts ?? null
+    }
+  }
+];</code></pre>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div class="container">
+          <div class="section-head">
+            <div>
+              <h2>6. デモ動画・スクリーンショット</h2>
+              <p>実際の利用画面とワークフロー画面を示す。Slack 上の利用体験と、裏側の処理の両方を確認できる。</p>
+            </div>
+          </div>
+          <div class="grid-2">
+            <figure class="shot">
+              <img
+                src="file:///Users/hayato/Desktop/スクリーンショット%202026-04-19%2022.28.33.png"
+                alt="注文催促DMと注文確定確認の n8n ワークフロー"
+              />
+              <figcaption class="shot-body">
+                <strong>図2. n8n ワークフロー全体</strong>
+                <p>
+                  上段では希望者の支払い完了を受けて注文催促DMを送信し、下段では主催者の注文完了操作を受けて状態を更新する。
+                  申請後の処理が複数のステップに分かれていることが分かる。
+                </p>
+              </figcaption>
+            </figure>
+            <figure class="shot">
+              <img
+                src="file:///Users/hayato/Desktop/スクリーンショット%202026-04-19%2022.29.46.png"
+                alt="送金依頼DMの画面"
+              />
+              <figcaption class="shot-body">
+                <strong>図3. 希望者へ送られる送金依頼DM</strong>
+                <p>
+                  商品名、個数、期限、PayPay ID をまとめて表示し、利用者は内容を確認した上で「送金済み」ボタンを押せる。
+                  支払い確認を Slack 上で完結させるための画面である。
+                </p>
+              </figcaption>
+            </figure>
+            <figure class="shot">
+              <img
+                src="file:///Users/hayato/Desktop/スクリーンショット%202026-04-19%2022.30.23.png"
+                alt="申請フォームの投稿と受付終了通知"
+              />
+              <figcaption class="shot-body">
+                <strong>図4. 申請フォーム投稿と受付終了通知</strong>
+                <p>
+                  申請内容の表示、在庫情報の返信、受付終了後の通知までが Slack スレッド上で確認できる。
+                  ユーザーは別画面に移動せずに状況を把握できる。
+                </p>
+              </figcaption>
+            </figure>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div class="container">
+          <div class="grid-3">
+            <article class="card">
+              <h3>工夫した点</h3>
+              <ul class="point-list">
+                <li>「管理ID」と「希望者管理ID」を分けて、案件単位と希望者単位を区別した</li>
+                <li>行番号依存を避け、識別子で Google Sheets を更新する設計にした</li>
+                <li>Webhook と Block Actions により、Slack 上で完結する運用を目指した</li>
+                <li>DM 送信済み・支払い完了済みを「status」で管理し、再送を防止した</li>
+              </ul>
+            </article>
+            <article class="card">
+              <h3>苦労した点</h3>
+              <ul class="point-list">
+                <li>n8n の Loop / Merge により入力データの整合性が崩れやすかった</li>
+                <li>Slack API の scope や DM 送信条件の調整に時間がかかった</li>
+                <li>スレッドタイムスタンプとコメントタイムスタンプの混同を避ける必要があった</li>
+                <li>UI の見た目よりも、バックグラウンド処理の整合性を優先したため設計変更が多かった</li>
+              </ul>
+            </article>
+            <article class="card">
+              <h3>今後の改善点・展望</h3>
+              <ul class="point-list">
+                <li>超過時のワークフローを追加し、MVP をリリース可能な状態まで完成させる</li>
+                <li>LINE / Discord にも対応し、Slack 以外の環境へ拡張する</li>
+                <li>PayPay API を用いた自動集金確認・将来的な自動集金システムへ発展させる</li>
+                <li>最終的には自動発注まで含めた共同購入基盤へ拡張する</li>
+              </ul>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div class="container">
+          <div class="card">
+            <h2>7. 使用技術</h2>
+            <div class="tag-row">
+              <span class="tag">JavaScript</span>
+              <span class="tag">n8n</span>
+              <span class="tag">Slack API</span>
+              <span class="tag">Webhook</span>
+              <span class="tag">Google Sheets</span>
+              <span class="tag">GitHub Pages</span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="container">
+      </div>
+    </footer>
+  </body>
+</html>
