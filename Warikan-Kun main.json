@@ -1,0 +1,2378 @@
+{
+  "name": "Warikan-Kun main",
+  "nodes": [
+    {
+      "parameters": {
+        "mode": "combine",
+        "fieldsToMatchString": "['管理ID']",
+        "joinMode": "keepEverything",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -1248,
+        784
+      ],
+      "id": "45ca0819-b293-4559-a799-1551ad73f22e",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "jsCode": "// n8n Code node (Run Once for All Items)\nconst items = $input.all();\n\nreturn items.map(item => {\n  const data = item.json;\n\n  const userTotal = Number(data[\"希望者希望個数合計\"] ?? 0);\n  const hostTotal = Number(\n    data[\"主催者希望数\"] ?? data[\"主催者希望数量\"] ?? 0\n  );\n\n  return {\n    json: {\n      ...data,\n      管理IDごとの希望個数合計: userTotal + hostTotal\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1104,
+        784
+      ],
+      "id": "06fe6951-700e-47db-b57b-dba79d25b464",
+      "name": "総量計算"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -2144,
+        720
+      ],
+      "id": "17167b63-57e7-4317-a6c0-f30f15ab7167",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "49246414-2e8a-495b-a3fa-e926a3df5d6b",
+              "name": "管理ID",
+              "value": "={{ $json['管理ID'] }}",
+              "type": "string"
+            },
+            {
+              "id": "d459abd1-ab04-44ea-a6be-a8502cdcd0b3",
+              "name": "希望者",
+              "value": "={{ $json['希望者'] }}",
+              "type": "string"
+            },
+            {
+              "id": "d94ae219-3bec-4663-ab27-518974e13ee3",
+              "name": "希望者希望個数",
+              "value": "={{ $json['希望者希望個数'] }}",
+              "type": "number"
+            },
+            {
+              "id": "66a541b1-93b5-4b7f-bb4d-38ebcd536753",
+              "name": "タイムスタンプ",
+              "value": "={{ $json['タイムスタンプ'] }}",
+              "type": "string"
+            },
+            {
+              "id": "3bc1368a-3230-4eb4-acc7-f9367a7ab5b5",
+              "name": "ユーザーID",
+              "value": "={{ $json['ユーザーID'] }}",
+              "type": "string"
+            },
+            {
+              "id": "d6f609b5-9cbc-499a-9193-ea5bf5585ef5",
+              "name": "希望者管理ID",
+              "value": "={{ $json['希望者管理ID'] }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1600,
+        672
+      ],
+      "id": "fc00feff-3333-4111-a7aa-67262c18dc93",
+      "name": "データ整形2"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst grouped = {};\n\nfor (const item of items) {\n  const data = item.json;\n\n  const managementId = data[\"管理ID\"];\n  const applicantManagementId = data[\"希望者管理ID\"] ?? null;\n  const wishedCount = Number(data[\"希望者希望個数\"] ?? 0);\n  const url = data[\"タイムスタンプ\"];\n\n  // Slack URL から ts を抽出\n  // 例:\n  // .../p1776389979316729 -> 1776389979.316729\n  let ts = null;\n  if (typeof url === \"string\") {\n    const match = url.match(/p(\\d{10})(\\d{6})/);\n    if (match) {\n      ts = `${match[1]}.${match[2]}`;\n    }\n  }\n\n  if (!grouped[managementId]) {\n    grouped[managementId] = {\n      管理ID: managementId,\n      希望者希望個数合計: 0,\n      希望者一覧: []\n    };\n  }\n\n  grouped[managementId].希望者一覧.push({\n    希望者管理ID: applicantManagementId,\n    名前: data[\"希望者\"],\n    ユーザーID: data[\"ユーザーID\"],\n    希望数: wishedCount,\n    タイムスタンプ: ts,\n    元URL: url\n  });\n\n  grouped[managementId].希望者希望個数合計 += wishedCount;\n}\n\n// 希望者一覧をタイムスタンプ順に並べる\nfor (const group of Object.values(grouped)) {\n  group.希望者一覧.sort((a, b) => {\n    const ta = Number(a.タイムスタンプ ?? 0);\n    const tb = Number(b.タイムスタンプ ?? 0);\n    return ta - tb;\n  });\n}\n\nreturn Object.values(grouped).map(group => ({\n  json: group\n}));\n\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1440,
+        672
+      ],
+      "id": "f5e624f5-4e3b-4494-a926-e5f54cfe24ea",
+      "name": "希望数総量計算1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "434e5f44-b654-429b-a14c-2030862f1ca7",
+              "leftValue": "={{ $json['まとめ']['管理IDごとの希望個数合計'] }}",
+              "rightValue": "={{ $json['商品']['商品個数'] }}",
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -608,
+        432
+      ],
+      "id": "65a54f34-cf2c-4528-bfcb-ebc08f500b9a",
+      "name": "等しいか否か"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst grouped = new Map();\n\nfor (const item of items) {\n  const data = item.json;\n\n  const managementId = data[\"管理ID\"] ?? data[\"ID\"] ?? null;\n  const product = data[\"商品\"] ?? {};\n  const summary = data[\"まとめ\"] ?? {};\n  const host = data[\"主催者\"] ?? {};\n  const applicants = Array.isArray(data[\"希望者一覧\"]) ? data[\"希望者一覧\"] : [];\n  const comms = data[\"通信\"] ?? {};\n\n  const price = Number(product[\"金額\"] ?? 0);\n  const quantity = Number(product[\"商品個数\"] ?? 0);\n  const hostWishedCount = Number(product[\"主催者希望数\"] ?? 0);\n  const unitPrice = Math.ceil(quantity > 0 ? price / quantity : 0);\n  const hostPayment = hostWishedCount * unitPrice;\n\n  if (!grouped.has(managementId)) {\n    grouped.set(managementId, {\n      管理ID: managementId,\n      商品: {\n        商品名: product[\"商品名\"],\n        URL: product[\"URL\"],\n        金額: product[\"金額\"],\n        商品個数: product[\"商品個数\"],\n        主催者希望数: hostWishedCount,\n        商品単価: unitPrice\n      },\n      まとめ: {\n        希望個数合計: 0,\n        管理IDごとの希望個数合計: summary[\"管理IDごとの希望個数合計\"] ?? 0\n      },\n      主催者: {\n        名前: host[\"名前\"],\n        ユーザーID: host[\"ユーザーID\"],\n        PayPayID: host[\"PayPayID\"],\n        希望数: hostWishedCount,\n        支払額: hostPayment\n      },\n      希望者一覧: [],\n      通信: {\n        スレッドタイムスタンプ: comms[\"スレッドタイムスタンプ\"]\n      }\n    });\n  }\n\n  const group = grouped.get(managementId);\n\n  for (const applicant of applicants) {\n    const wishedCount = Number(applicant[\"希望数\"] ?? applicant[\"希望個数\"] ?? 0);\n    const payment = wishedCount * unitPrice;\n    const applicantUserId = applicant[\"ユーザーID\"] ?? null;\n    const applicantManagementId =\n      applicant[\"希望者管理ID\"] ??\n      (managementId && applicantUserId ? `${managementId}${applicantUserId}` : null);\n\n    group.希望者一覧.push({\n      希望者管理ID: applicantManagementId,\n      名前: applicant[\"名前\"],\n      ユーザーID: applicantUserId,\n      希望数: wishedCount,\n      支払額: payment,\n      タイムスタンプ: applicant[\"タイムスタンプ\"]\n    });\n\n    group.まとめ.希望個数合計 += wishedCount;\n  }\n}\n\nfor (const group of grouped.values()) {\n  group.希望者一覧.sort((a, b) => Number(a.タイムスタンプ ?? 0) - Number(b.タイムスタンプ ?? 0));\n}\n\nreturn Array.from(grouped.values()).map(group => ({\n  json: group\n}));\n\n\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -464,
+        304
+      ],
+      "id": "5e67780c-8f42-490b-8323-1b6c7b12a251",
+      "name": "単位価格の計算"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "url",
+          "value": "https://docs.google.com/spreadsheets/d/1039A9LWNXTwSzawEPTwraOPf0mp2ry2qQOGt1UV2zMU/edit?usp=drivesdk",
+          "__regex": "https:\\/\\/(?:drive|docs)\\.google\\.com(?:\\/.*|)\\/d\\/([0-9a-zA-Z\\-_]+)(?:\\/.*|)"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1734738463,
+          "mode": "list",
+          "cachedResultName": "フォーム形式の回答",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1039A9LWNXTwSzawEPTwraOPf0mp2ry2qQOGt1UV2zMU/edit#gid=1734738463"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -1888,
+        1040
+      ],
+      "id": "45d41630-6a8d-48ff-ba6f-2196eef4c2c6",
+      "name": "商品DB",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "ESQkIlB0QjarIcp3",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "select": "user",
+        "user": {
+          "__rl": true,
+          "value": "={{ $json.UserID }}",
+          "mode": "id"
+        },
+        "messageType": "block",
+        "blocksUi": "=[\n  {\n    \"type\": \"context\",\n    \"elements\": [\n      {\n        \"type\": \"mrkdwn\",\n        \"text\": \"*割り勘くん*\"\n      }\n    ]\n  },\n  {\n    \"type\": \"header\",\n    \"text\": {\n      \"type\": \"plain_text\",\n      \"text\": \"支払いをお願いします\"\n    }\n  },\n  {\n    \"type\": \"section\",\n    \"text\": {\n      \"type\": \"mrkdwn\",\n      \"text\": \"={{ '*' + $json['名前'] + ' さん、注文人数が集まりました。' }}\"\n    }\n  },\n  {\n    \"type\": \"section\",\n    \"text\": {\n      \"type\": \"mrkdwn\",\n      \"text\": \"={{ '*支払い金額*\\\\n*¥' + ($json['支払額'] ?? '') + '*' }}\"\n    }\n  },\n  {\n    \"type\": \"section\",\n    \"fields\": [\n      {\n        \"type\": \"mrkdwn\",\n        \"text\": \"={{ '*商品*\\\\n' + String($json['管理ID'] ?? '').replace(/[0-9]+$/, '') }}\"\n      },\n      {\n        \"type\": \"mrkdwn\",\n        \"text\": \"={{ '*希望個数*\\\\n' + ($json['希望個数'] ?? '') + '個' }}\"\n      }\n    ]\n  },\n  {\n    \"type\": \"divider\"\n  },\n  {\n    \"type\": \"section\",\n    \"text\": {\n      \"type\": \"mrkdwn\",\n      \"text\": \"={{ '*送金先*\\\\n:warning: 送金先を必ず確認してからお支払いください。\\\\n`' + ($json['PayPayID'] ?? '') + '`' }}\"\n    }\n  },\n  {\n    \"type\": \"section\",\n    \"text\": {\n      \"type\": \"mrkdwn\",\n      \"text\": \"*支払い後にチェックしてください*\"\n    },\n    \"accessory\": {\n      \"type\": \"checkboxes\",\n      \"action_id\": \"payment_status_checkbox\",\n      \"options\": [\n        {\n          \"text\": {\n            \"type\": \"plain_text\",\n            \"text\": \"支払い済み\"\n          },\n          \"value\": \"={{ 'paid:' + ($json['管理ID'] ?? '') }}\"\n        }\n      ]\n    }\n  }\n]\n",
+        "text": "=支払いのお願い\n申込みありがとうございます。\n\nご注文内容が確定したため支払いをお願いします\n商品：{{ $json['商品名'] }}\n希望個数：{{ $json['希望個数'] }}\n金額：{{ $json['支払額'] }}\nPayPayID：{{ $json.PayPayID }}\n支払い期限：このDM受信から２日間以内\n⚠️間違えないよう、よろしくおねがいします⚠️\n\n割り勘くん運営チームより",
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.4,
+      "position": [
+        1248,
+        1280
+      ],
+      "id": "01bff3a8-aabd-4d52-88af-e155e74c7c40",
+      "name": "Send a message2",
+      "webhookId": "b149a88d-57e7-4d49-a1f5-267e476c3e7b",
+      "credentials": {
+        "slackApi": {
+          "id": "TvA9O1NyO0DxhQDw",
+          "name": "Slack account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "注文締切後のDM送信\n\n超過分注文未対応\nスレッドが立ったら単位量価格を即時返信。"
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -944,
+        -32
+      ],
+      "typeVersion": 1,
+      "id": "ba50683a-457e-4e65-9ae5-d233e353e0de",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "7ed9ede9-7ee1-4b66-b42b-b6bef07e3ea2",
+              "leftValue": "={{ $json['まとめ']['管理IDごとの希望個数合計'] }}",
+              "rightValue": "={{ $json['商品']['商品個数'] }}",
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -816,
+        784
+      ],
+      "id": "9a17e731-f67d-41c7-92d6-222ac58db1cf",
+      "name": "以上か否か"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Loop over input items and add a new field called 'myNewField' to the JSON of each one\nconst items = $input.all();\n\nreturn items.map(item => {\n  const data = item.json;\n  \n  const quantity = Number(data[\"商品個数\"] ?? 0);\n  const Wquantity = Number(data[\"管理IDごとの希望個数合計\"] ?? 0);\n\n  const overamount = (Wquantity - quantity);\n\n  return {\n    json: {\n      ...data,\n      超過数: overamount\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -464,
+        480
+      ],
+      "id": "edc9a8b9-5d52-430f-b624-620ecde009d6",
+      "name": "超過量計算"
+    },
+    {
+      "parameters": {
+        "content": "## Why loop is fuck?\nBecause of how n8n works, data duplication happens, so it sucks.\nIt’s best to run it using the timer function.",
+        "height": 208
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -336,
+        1168
+      ],
+      "typeVersion": 1,
+      "id": "5d6751a8-c832-4671-a0cf-760827e7af88",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        -320,
+        768
+      ],
+      "id": "d4b84eac-97ce-40e2-a862-b66bd71646dd",
+      "name": "終了"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        -608,
+        976
+      ],
+      "id": "fd71f77b-389f-42e7-b639-3d27d777fd92",
+      "name": "終了1"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "7e362c4a-780d-4374-b33b-9da484a5e7c2",
+              "name": "['商品']['商品名']",
+              "value": "={{ $json['商品']['商品名'] }}",
+              "type": "string"
+            },
+            {
+              "id": "878904fa-91f7-4da6-aea9-337f88b0a3b7",
+              "name": "['主催者']['名前']",
+              "value": "={{ $json['主催者']['名前'] }}",
+              "type": "string"
+            },
+            {
+              "id": "93802648-7375-4ec9-8af1-8c2fff78a34d",
+              "name": "['通信']['スレッドタイムスタンプ']",
+              "value": "={{ $json['通信']['スレッドタイムスタンプ'] }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -608,
+        768
+      ],
+      "id": "dba2a169-d533-472a-8b7f-9c0b2e61ac9e",
+      "name": "終了通知用加工"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Loop over input items and add a new field called 'myNewField' to the JSON of each one\nfunction formatTimestamp(url) {\n  const match = url.match(/p(\\d+)/);\n  if (!match) return null;\n\n  let num = match[1];\n\n  // 下16桁を取得\n  num = num.slice(-16);\n\n  // 下6桁を小数点に\n  const integerPart = num.slice(0, -6);\n  const decimalPart = num.slice(-6);\n\n  return `${integerPart}.${decimalPart}`;\n}\n\nreturn items.map(item => {\n  const data = item.json;\n\n  return {\n    json: {\n      商品名: data.商品名,\n      URL: data.URL,\n      金額: data.金額,\n      商品個数: data.商品個数,\n      主催者希望数量: data.主催者希望数量,\n      主催者: data.主催者,\n      PayPayID: data.PayPayID,\n      スレッドタイムスタンプ: formatTimestamp(data.タイムスタンプ),\n      管理ID: data.管理ID,\n      ホストユーザーID: data.ユーザーID\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1504,
+        1024
+      ],
+      "id": "32933a89-a382-494d-a7d0-9d12b0b4c9dc",
+      "name": "スレッドタイムスタンプ取得"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={{\n{\n  管理ID: $json[\"管理ID\"],\n  商品: {\n    商品名: $json[\"商品名\"],\n    URL: $json[\"URL\"],\n    金額: $json[\"金額\"],\n    商品個数: $json[\"商品個数\"],\n    主催者希望数: $json[\"主催者希望数量\"]\n  },\n  まとめ: {\n    希望個数合計: $json[\"希望者希望個数合計\"],\n    管理IDごとの希望個数合計: $json[\"管理IDごとの希望個数合計\"]\n  },\n  主催者: {\n    名前: $json[\"主催者\"],\n    ユーザーID: $json[\"ホストユーザーID\"],\n    PayPayID: $json[\"PayPayID\"]\n  },\n  希望者一覧: ($json[\"希望者一覧\"] ?? []).map(person => ({\n    希望者管理ID: person[\"希望者管理ID\"],\n    名前: person[\"名前\"],\n    ユーザーID: person[\"ユーザーID\"],\n    希望数: person[\"希望数\"],\n    タイムスタンプ: person[\"タイムスタンプ\"],\n    元URL: person[\"元URL\"]\n  })),\n  通信: {\n    スレッドタイムスタンプ: $json[\"スレッドタイムスタンプ\"]\n  }\n}\n}}\n\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -960,
+        784
+      ],
+      "id": "937ef6b3-a26c-4c8a-98db-0e91b7df995f",
+      "name": "Edit Fields1"
+    },
+    {
+      "parameters": {
+        "content": "## IFノード条件 \n「左側の値（Value 1）」が、「右側の値（Value 2）」に対して、「条件（Operator）」を満たしているか？\n"
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -976,
+        976
+      ],
+      "typeVersion": 1,
+      "id": "a7bc280e-ff54-4d35-8dd0-beaf839930f4",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "C0AS6B11KJM"
+        },
+        "text": "=＜受付終了＞ \nたくさんのご注文ありがとうございます！ \n{{ $json['主催者']['名前'] }} の {{ $json['商品']['商品名'] }}の注文受付は終了しました。\nまたのご利用をお待ちしております。\n\n割り勘くん運営チームより",
+        "otherOptions": {
+          "thread_ts": {
+            "replyValues": {
+              "thread_ts": "={{ $json['通信']['スレッドタイムスタンプ'] }}"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.4,
+      "position": [
+        -464,
+        768
+      ],
+      "id": "0499e5b6-c85b-442a-aac6-f86edd7d46cc",
+      "name": "スレッド終了通知",
+      "webhookId": "e870cf3d-b5be-432a-b67f-3d10d53747cb",
+      "credentials": {
+        "slackApi": {
+          "id": "TvA9O1NyO0DxhQDw",
+          "name": "Slack account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  const data = item.json;\n  const product = data[\"商品\"] ?? {};\n  const summary = data[\"まとめ\"] ?? {};\n  const host = data[\"主催者\"] ?? {};\n  const applicants = data[\"希望者一覧\"] ?? [];\n  const comms = data[\"通信\"] ?? {};\n\n  const hostUserId = host[\"ユーザーID\"] ?? null;\n  const hostName = host[\"名前\"] ?? null;\n  const hostWantedCount = Number(host[\"希望数\"] ?? product[\"主催者希望数\"] ?? 0);\n  const hostPayment = Number(host[\"支払額\"] ?? 0);\n\n  const commonFields = {\n    管理ID: data[\"管理ID\"],\n    商品名: product[\"商品名\"] ?? null,\n    商品URL: product[\"URL\"] ?? null,\n    商品単価: Number(product[\"商品単価\"] ?? 0),\n    商品個数: Number(product[\"商品個数\"] ?? 0),\n    主催者希望数: hostWantedCount,\n    主催者支払額: hostPayment,\n    希望個数合計: Number(summary[\"希望個数合計\"] ?? 0),\n    管理IDごとの希望個数合計: Number(summary[\"管理IDごとの希望個数合計\"] ?? 0),\n    主催者名: hostName,\n    主催者ユーザーID: hostUserId,\n    PayPayID: host[\"PayPayID\"] ?? null,\n    スレッドタイムスタンプ: comms[\"スレッドタイムスタンプ\"] ?? null,\n  };\n\n  // 主催者向け row\n  if (hostUserId) {\n    results.push({\n      json: {\n        送信キー: `${data[\"管理ID\"]}_${hostUserId}_host`,\n        送信種別: \"主催者\",\n        宛先ユーザーID: hostUserId,\n        宛先名: hostName,\n        希望者管理ID: null,\n        希望者名: null,\n        希望者ユーザーID: null,\n        希望者希望数: null,\n        希望者支払額: null,\n        希望者タイムスタンプ: null,\n        ...commonFields,\n      }\n    });\n  }\n\n  // 希望者向け row\n  for (const person of applicants) {\n    const userId = person[\"ユーザーID\"];\n    if (!userId) continue;\n\n    const applicantManagementId =\n      person[\"希望者管理ID\"] ??\n      (data[\"管理ID\"] && userId ? `${data[\"管理ID\"]}${userId}` : null);\n\n    results.push({\n      json: {\n        送信キー: `${data[\"管理ID\"]}_${userId}_applicant`,\n        送信種別: \"希望者\",\n        宛先ユーザーID: userId,\n        宛先名: person[\"名前\"] ?? null,\n        希望者管理ID: applicantManagementId,\n        希望者名: person[\"名前\"] ?? null,\n        希望者ユーザーID: userId,\n        希望者希望数: Number(person[\"希望数\"] ?? 0),\n        希望者支払額: Number(person[\"支払額\"] ?? 0),\n        希望者タイムスタンプ: person[\"タイムスタンプ\"] ?? null,\n        ...commonFields,\n      }\n    });\n  }\n}\n\nreturn results;\n\n\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -320,
+        304
+      ],
+      "id": "cd32b5c7-2cc6-4c44-ae5f-f97ff9d481b0",
+      "name": "ユーザー単位展開"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "e8186047-772d-45c3-911b-0f2ed16767e6",
+              "leftValue": "={{ $json['送信種別'] }}",
+              "rightValue": "希望者",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -160,
+        304
+      ],
+      "id": "98993ac3-7fd9-4fd0-90cf-11f66bf69b84",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "content": "## DMのUIについて\nMVP段階だから完璧じゃない"
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        336,
+        -320
+      ],
+      "typeVersion": 1,
+      "id": "176e4507-ecd2-47ae-bda4-b6c6a1720033",
+      "name": "Sticky Note3"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1680,
+        -64
+      ],
+      "id": "92af5bda-af14-4740-9838-0a466816571a",
+      "name": "終了2"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://slack.com/api/chat.postMessage",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "slackApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"channel\": \"{{ $json['宛先ユーザーID'] }}\",\n  \"text\": \"{{ $json['商品名'] }} の支払い案内です。支払額は {{ $json['希望者支払額'] }}円です。\",\n  \"blocks\": [\n    {\n      \"type\": \"header\",\n      \"text\": {\n        \"type\": \"plain_text\",\n        \"text\": \"割り勘くん\",\n        \"emoji\": true\n      }\n    },\n    {\n      \"type\": \"section\",\n      \"text\": {\n        \"type\": \"mrkdwn\",\n        \"text\": \"*¥{{ $json['希望者支払額'] }}お支払いください*\"\n      }\n    },\n    {\n      \"type\": \"divider\"\n    },\n    {\n      \"type\": \"section\",\n      \"fields\": [\n        {\n          \"type\": \"mrkdwn\",\n          \"text\": \"*商品*\\n{{ $json['商品名'] }}\"\n        },\n        {\n          \"type\": \"mrkdwn\",\n          \"text\": \"*個数*\\n{{ $json['希望者希望数'] }}個\"\n        },\n        {\n          \"type\": \"mrkdwn\",\n          \"text\": \"*期限*\\n通知から2日以内\"\n        },\n        {\n          \"type\": \"mrkdwn\",\n          \"text\": \"*PayPay ID*\\n`{{ $json['PayPayID'] }}`\"\n        },\n        {\n          \"type\": \"mrkdwn\",\n          \"text\": \"\\n⚠️*金額のお間違えのないように送金してください。*\"\n        }\n      ]\n    },\n    {\n      \"type\": \"actions\",\n      \"block_id\": \"payment_actions\",\n      \"elements\": [\n        {\n          \"type\": \"button\",\n          \"action_id\": \"payment_done\",\n          \"text\": {\n            \"type\": \"plain_text\",\n            \"text\": \"送金済み\",\n            \"emoji\": true\n          },\n          \"style\": \"primary\",\n          \"value\": \"{{ $json['希望者管理ID'] }}\"\n        }\n      ]\n    }\n  ]\n}\n\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        240,
+        112
+      ],
+      "id": "f65a1533-1a25-4795-bec2-67011f3b1658",
+      "name": "希望者DM送信",
+      "credentials": {
+        "slackApi": {
+          "id": "TvA9O1NyO0DxhQDw",
+          "name": "Slack account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/1felnNEFw1Kfv21YR2sj7_wZJJb11W3i94ouASut3dW8/edit?gid=0#gid=0",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "シート1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1felnNEFw1Kfv21YR2sj7_wZJJb11W3i94ouASut3dW8/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "管理ID",
+              "displayName": "管理ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "商品個数",
+              "displayName": "商品個数",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "管理IDごとの希望個数",
+              "displayName": "管理IDごとの希望個数",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "超過数",
+              "displayName": "超過数",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "タイムスタンプ",
+              "displayName": "タイムスタンプ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -128,
+        544
+      ],
+      "id": "86ade8bc-723e-4d0f-b9e0-a2925e536990",
+      "name": "Append row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "ESQkIlB0QjarIcp3",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "batchSize": "={{ 1 }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -288,
+        480
+      ],
+      "id": "6db00e90-e2d8-422f-bb58-e11d6749cc87",
+      "name": "Loop Over Items1"
+    },
+    {
+      "parameters": {
+        "operation": "addLabels",
+        "messageId": "={{ $json.id }}",
+        "labelIds": [
+          "Label_2"
+        ]
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        528,
+        112
+      ],
+      "id": "67ab3a0f-5b69-497b-8f89-b1a104769f07",
+      "name": "ラベル添付",
+      "webhookId": "85f1a0f8-429b-4837-af39-9328ed9db7e2",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "cIFmx5Xe1RQGhorN",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "batchSize": "={{ 1 }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        96,
+        -32
+      ],
+      "id": "26ddef22-98c2-48ea-8b90-658c2a73cc1c",
+      "name": "個別DM送信用"
+    },
+    {
+      "parameters": {
+        "sendTo": "haya10hikawa@gmail.com",
+        "subject": "={{ $('個別DM送信用').item.json['希望者名'] }}に支払いを依頼しました",
+        "emailType": "text",
+        "message": "=管理ID：{{ $('個別DM送信用').item.json['管理ID'] }}\nスレッドタイムスタンプ：{{ $('個別DM送信用').item.json['スレッドタイムスタンプ'] }}\n主催者名：{{ $('個別DM送信用').item.json['宛先名'] }}\n  PayPauID:{{ $('個別DM送信用').item.json.PayPayID }}\n希望者：{{ $('個別DM送信用').item.json['希望者名'] }}\n希望者支払額：{{ $('個別DM送信用').item.json['希望者支払額'] }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        384,
+        112
+      ],
+      "id": "740c3837-2415-4992-98cc-69151cb0f8a5",
+      "name": "Dev向け通知",
+      "webhookId": "1ab198f2-e330-4f6b-9cad-a9016a7ba1b6",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "cIFmx5Xe1RQGhorN",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        672,
+        48
+      ],
+      "id": "9100d0a8-bc2a-4c67-908b-05d778066988",
+      "name": "Merge1"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "0783f5ab-3488-40a2-8935-5342b328ee32",
+              "name": "希望者管理ID",
+              "value": "={{ $json['希望者管理ID'] }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        816,
+        48
+      ],
+      "id": "2033ab6d-d021-4dc5-ad20-b84a4ed263eb",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1wFfy5P-dJBj7Rr7drsu9SKsyOD-XnLSIKaj72mA5nbQ",
+          "mode": "list",
+          "cachedResultName": "割り勘くん_希望個数DB",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1wFfy5P-dJBj7Rr7drsu9SKsyOD-XnLSIKaj72mA5nbQ/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 520674306,
+          "mode": "list",
+          "cachedResultName": "フォーム形式の回答",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1wFfy5P-dJBj7Rr7drsu9SKsyOD-XnLSIKaj72mA5nbQ/edit#gid=520674306"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "希望者管理ID": "={{ $json['希望者管理ID'] }}",
+            "status": "dm sent"
+          },
+          "matchingColumns": [
+            "希望者管理ID"
+          ],
+          "schema": [
+            {
+              "id": "希望者希望個数",
+              "displayName": "希望者希望個数",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "希望者",
+              "displayName": "希望者",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "管理ID",
+              "displayName": "管理ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "タイムスタンプ",
+              "displayName": "タイムスタンプ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ユーザーID",
+              "displayName": "ユーザーID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "希望者管理ID",
+              "displayName": "希望者管理ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        992,
+        128
+      ],
+      "id": "93c45dd4-de82-48d3-9c6a-d457196108d0",
+      "name": "希望者状態入力",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "ESQkIlB0QjarIcp3",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        320,
+        -96
+      ],
+      "id": "c4a54335-a5e8-4d1c-976e-55e5cf88ffd4",
+      "name": "終了3"
+    },
+    {
+      "parameters": {
+        "content": "## 希望個数DB status\n①dm sent :DM送信済み\n②payment done: 支払い済み"
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        976,
+        -112
+      ],
+      "typeVersion": 1,
+      "id": "7db37a6a-5f7a-488d-8c56-d3d3beaedb75",
+      "name": "Sticky Note4"
+    },
+    {
+      "parameters": {
+        "content": "## 商品DB status\n①waiting for payment:集金待ち\n②dm sent: 注文案内DM送信済み\n③done :注文済み",
+        "width": 320
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1088,
+        352
+      ],
+      "typeVersion": 1,
+      "id": "2ae2868d-e205-4fb3-8d07-9199b4ff8aa1",
+      "name": "Sticky Note5"
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map(item => item.json);\n\nif (rows.length === 0) {\n  return [];\n}\n\n// payment done の行だけ対象にする\nconst paidRows = rows.filter(row =>\n  String(row[\"status\"] ?? \"\").trim() === \"payment done\"\n);\n\nif (paidRows.length === 0) {\n  return [];\n}\n\n// payment done になった各案件をユニーク化\nconst managementMap = new Map();\n\nfor (const row of paidRows) {\n  const applicantManagementId = row[\"希望者管理ID\"] ?? null;\n  const applicantUserId = row[\"希望者ユーザーID\"] ?? row[\"ユーザーID\"] ?? null;\n\n  if (!applicantManagementId || !applicantUserId) continue;\n  if (!String(applicantManagementId).endsWith(String(applicantUserId))) continue;\n\n  const managementId = String(applicantManagementId).slice(0, -String(applicantUserId).length);\n\n  if (!managementMap.has(managementId)) {\n    managementMap.set(managementId, []);\n  }\n\n  managementMap.get(managementId).push(row);\n}\n\nconst results = [];\n\nfor (const [managementId] of managementMap.entries()) {\n  const sameManagementRows = rows.filter(row => {\n    const rowApplicantManagementId = row[\"希望者管理ID\"] ?? null;\n    const rowApplicantUserId = row[\"希望者ユーザーID\"] ?? row[\"ユーザーID\"] ?? null;\n\n    if (!rowApplicantManagementId || !rowApplicantUserId) return false;\n    if (!String(rowApplicantManagementId).endsWith(String(rowApplicantUserId))) return false;\n\n    const rowManagementId = String(rowApplicantManagementId).slice(0, -String(rowApplicantUserId).length);\n    return rowManagementId === managementId;\n  });\n\n  if (sameManagementRows.length === 0) continue;\n\n  const allDone = sameManagementRows.every(row =>\n    String(row[\"status\"] ?? \"\").trim() === \"payment done\"\n  );\n\n  if (!allDone) continue;\n\n  results.push({\n    json: {\n      管理ID: managementId,\n      希望者人数: sameManagementRows.length,\n      allDone: true\n    }\n  });\n}\n\nreturn results;\n\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1040,
+        1616
+      ],
+      "id": "a54be3c6-6d6f-4fea-a814-e62fecf2a36a",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1wFfy5P-dJBj7Rr7drsu9SKsyOD-XnLSIKaj72mA5nbQ",
+          "mode": "list",
+          "cachedResultName": "割り勘くん_希望個数DB",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1wFfy5P-dJBj7Rr7drsu9SKsyOD-XnLSIKaj72mA5nbQ/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 520674306,
+          "mode": "list",
+          "cachedResultName": "フォーム形式の回答",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1wFfy5P-dJBj7Rr7drsu9SKsyOD-XnLSIKaj72mA5nbQ/edit#gid=520674306"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -1216,
+        1616
+      ],
+      "id": "12cbfdd9-c645-4db6-af1f-e4425237b881",
+      "name": "希望個数DB",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "ESQkIlB0QjarIcp3",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -1392,
+        1632
+      ],
+      "id": "aac55def-8c27-4ce9-9587-3566f7e8357c",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        -1392,
+        1952
+      ],
+      "id": "b6b95f66-6c20-4bf3-95f1-8d921ecb1449",
+      "name": "終了4"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "url",
+          "value": "https://docs.google.com/spreadsheets/d/1039A9LWNXTwSzawEPTwraOPf0mp2ry2qQOGt1UV2zMU/edit?usp=drivesdk",
+          "__regex": "https:\\/\\/(?:drive|docs)\\.google\\.com(?:\\/.*|)\\/d\\/([0-9a-zA-Z\\-_]+)(?:\\/.*|)"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1734738463,
+          "mode": "list",
+          "cachedResultName": "フォーム形式の回答",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1039A9LWNXTwSzawEPTwraOPf0mp2ry2qQOGt1UV2zMU/edit#gid=1734738463"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -1680,
+        1488
+      ],
+      "id": "bc0ecc73-1ede-4f51-b017-dcd36d4e97f4",
+      "name": "商品DB1",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "ESQkIlB0QjarIcp3",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "fieldsToMatchString": "['管理ID']",
+        "joinMode": "keepEverything",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -864,
+        1584
+      ],
+      "id": "dfe99efd-3e92-43ba-b430-5547883da969",
+      "name": "Merge2"
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map(item => item.json);\nconst results = [];\n\nfor (const row of rows) {\n  const isAllDone =\n    row[\"allDone\"] === true ||\n    String(row[\"allDone\"] ?? \"\").trim().toLowerCase() === \"true\";\n\n  if (!isAllDone) continue;\n\n  results.push({\n    json: {\n      row_number: row[\"row_number\"] ?? null,\n      管理ID: row[\"管理ID\"] ?? null,\n      商品名: row[\"商品名\"] ?? null,\n      商品URL: row[\"URL\"] ?? null,\n      金額: Number(row[\"金額\"] ?? 0),\n      商品個数: Number(row[\"商品個数\"] ?? 0),\n      主催者希望数量: Number(row[\"主催者希望数量\"] ?? 0),\n      主催者名: row[\"主催者\"] ?? null,\n      主催者ユーザーID: row[\"ユーザーID\"] ?? null,\n      PayPayID: row[\"PayPayID\"] ?? null,\n      希望者人数: Number(row[\"希望者人数\"] ?? 0),\n      status: row[\"status\"] ?? null,\n      allDone: true\n    }\n  });\n}\n\nreturn results;\n\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -704,
+        1584
+      ],
+      "id": "3c610eec-216c-4d1c-a1c7-ff888c903c35",
+      "name": "Code in JavaScript2"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        0,
+        320
+      ],
+      "id": "76dd3910-808c-4316-b944-49cb4ed36158",
+      "name": "終了5"
+    },
+    {
+      "parameters": {
+        "content": "## ↑主催者DBについて\nWebhookトリガーで始まる。\n",
+        "width": 288
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        256,
+        400
+      ],
+      "typeVersion": 1,
+      "id": "b5822d39-49f4-43a8-99a1-ade7eed850df",
+      "name": "Sticky Note6"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://slack.com/api/chat.postMessage",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "slackApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"channel\": \"{{ $json['主催者ユーザーID'] }}\",\n  \"text\": \"{{ $json['主催者名'] }}さん、{{ $json['商品名'] }} の支払いが全員分そろいました。購入をお願いします。\",\n  \"blocks\": [\n    {\n      \"type\": \"header\",\n      \"text\": {\n        \"type\": \"plain_text\",\n        \"text\": \"割り勘くん\",\n        \"emoji\": true\n      }\n    },\n    {\n      \"type\": \"section\",\n      \"text\": {\n        \"type\": \"mrkdwn\",\n        \"text\": \"*{{ $json['商品名'] }} の支払いが全員分そろいました*\"\n      }\n    },\n    {\n      \"type\": \"section\",\n      \"fields\": [\n        {\n          \"type\": \"mrkdwn\",\n          \"text\": \"*商品*\\n{{ $json['商品名'] }}\"\n        },\n        {\n          \"type\": \"mrkdwn\",\n          \"text\": \"*希望者人数*\\n{{ $json['希望者人数'] }}人\"\n        },\n        {\n          \"type\": \"mrkdwn\",\n          \"text\": \"*合計個数*\\n{{ $json['商品個数'] }}個\"\n        },\n        {\n          \"type\": \"mrkdwn\",\n          \"text\": \"*PayPay ID*\\n`{{ $json['PayPayID'] }}`\"\n        }\n      ]\n    },\n    {\n      \"type\": \"context\",\n      \"elements\": [\n        {\n          \"type\": \"mrkdwn\",\n          \"text\": \"購入が完了したらボタンを押してください。\"\n        }\n      ]\n    },\n    {\n      \"type\": \"actions\",\n      \"block_id\": \"purchase_actions\",\n      \"elements\": [\n        {\n          \"type\": \"button\",\n          \"action_id\": \"purchase_done\",\n          \"text\": {\n            \"type\": \"plain_text\",\n            \"text\": \"注文済み\",\n            \"emoji\": true\n          },\n          \"style\": \"primary\",\n          \"value\": \"{{ $json['管理ID'] }}\"\n        }\n      ]\n    }\n  ]\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -544,
+        1584
+      ],
+      "id": "824e20c7-b597-4a37-a4ac-b559a706c7eb",
+      "name": "希望者DM送信1",
+      "credentials": {
+        "slackApi": {
+          "id": "TvA9O1NyO0DxhQDw",
+          "name": "Slack account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "addLabels",
+        "messageId": "={{ $json.id }}",
+        "labelIds": [
+          "Label_5449100320899428870"
+        ]
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        -256,
+        1584
+      ],
+      "id": "aab4f2f1-2f0e-4f3e-bb6e-9dd2b4611a4b",
+      "name": "ラベル添付1",
+      "webhookId": "85f1a0f8-429b-4837-af39-9328ed9db7e2",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "cIFmx5Xe1RQGhorN",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "haya10hikawa@gmail.com",
+        "subject": "={{ $('Merge2').item.json['主催者'] }}に注文を依頼しました",
+        "emailType": "text",
+        "message": "=管理ID：{{ $('Merge2').item.json['管理ID'] }}\n主催者：{{ $('Merge2').item.json['主催者'] }}\n  金額：{{ $('Merge2').item.json['金額'] }}\n希望人数：{{ $('Merge2').item.json['希望者人数'] }}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        -400,
+        1584
+      ],
+      "id": "d635f4f4-a70d-4b4d-80a8-eb989c7b0a13",
+      "name": "Dev向け通知1",
+      "webhookId": "1ab198f2-e330-4f6b-9cad-a9016a7ba1b6",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "cIFmx5Xe1RQGhorN",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        -112,
+        1584
+      ],
+      "id": "e219d38a-87db-42ff-b451-9b5a5c38b8c5",
+      "name": "終了6"
+    },
+    {
+      "parameters": {
+        "content": "## 注文催促DM \n",
+        "height": 688,
+        "width": 2320,
+        "color": 6
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -2144,
+        1392
+      ],
+      "typeVersion": 1,
+      "id": "df99cae9-eb99-42d4-b83c-c6acabf8d736",
+      "name": "Sticky Note7"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "button-action",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -1872,
+        1648
+      ],
+      "id": "8369cc80-24e9-4569-9e49-8cf52f1b291c",
+      "name": "入力アクション",
+      "webhookId": "dfac153e-7b8f-4349-ba7f-7a7c44ff9946"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "button-action",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -1920,
+        2320
+      ],
+      "id": "a3e7d1ed-fb56-4613-9617-e0d0cec5d64b",
+      "name": "入力アクション1",
+      "webhookId": "dfac153e-7b8f-4349-ba7f-7a7c44ff9946"
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $json.body?.payload ?? $json.payload;\nconst payload = typeof raw === \"string\" ? JSON.parse(raw) : raw;\n\nconst action = payload.actions?.[0] ?? {};\nconst applicantManagementId = action.value ?? null;\nconst reportedUserId = payload.user?.id ?? null;\n\nlet managementId = null;\n\nif (\n  typeof applicantManagementId === \"string\" &&\n  typeof reportedUserId === \"string\" &&\n  applicantManagementId.endsWith(reportedUserId)\n) {\n  managementId = applicantManagementId.slice(0, -reportedUserId.length);\n}\n\nreturn [\n  {\n    json: {\n      actionId: action.action_id ?? null,\n      希望者管理ID: applicantManagementId,\n      管理ID: managementId,\n      希望者ユーザーID: reportedUserId,\n      送金報告ユーザーID: reportedUserId,\n      送金報告ユーザー名: payload.user?.username ?? null,\n      actionTs: action.action_ts ?? null,\n      messageTs: payload.message?.ts ?? null,\n      channelId: payload.channel?.id ?? null,\n      responseUrl: payload.response_url ?? null\n    }\n  }\n];\n\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1696,
+        1648
+      ],
+      "id": "168da415-15fb-47d4-af7b-c193cb522608",
+      "name": "データ整形"
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $json.body?.payload ?? $json.payload;\nconst payload = typeof raw === \"string\" ? JSON.parse(raw) : raw;\n\nconst action = payload.actions?.[0] ?? {};\nconst managementId = action.value ?? null;\n\nreturn [\n  {\n    json: {\n      actionId: action.action_id ?? null,\n      管理ID: managementId,\n      状態: \"purchased\",\n      purchased_at: action.action_ts ?? null,\n      購入完了ユーザーID: payload.user?.id ?? null,\n      購入完了ユーザー名: payload.user?.username ?? null,\n      channelId: payload.channel?.id ?? null,\n      messageTs: payload.message?.ts ?? null,\n      responseUrl: payload.response_url ?? null\n    }\n  }\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1760,
+        2320
+      ],
+      "id": "24616f8d-aeb3-48d8-9be7-45146cca77e1",
+      "name": "データ整形1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "c99edd94-8dcd-4f07-88cb-174882f8976f",
+              "leftValue": "={{ $json.actionId }}",
+              "rightValue": "payment_done",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -1552,
+        1648
+      ],
+      "id": "fef8b6bd-e762-4107-a31e-324b22e578fb",
+      "name": "payment_done"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "a42e3b3b-15ef-4445-82dc-880aa7218ea9",
+              "leftValue": "={{ $json.actionId }}",
+              "rightValue": "purchase_done",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -1600,
+        2320
+      ],
+      "id": "7d179de5-daf4-401f-aab0-01510c993246",
+      "name": "purchase_done"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -1360,
+        2304
+      ],
+      "id": "a1008db7-c73a-473b-b30e-0dbb4bc6c774",
+      "name": "Loop Over Items2"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        -1408,
+        2640
+      ],
+      "id": "0f163bb3-5a2c-401c-97ca-57b1e2abf153",
+      "name": "終了7"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1039A9LWNXTwSzawEPTwraOPf0mp2ry2qQOGt1UV2zMU",
+          "mode": "list",
+          "cachedResultName": "割り勘くん_商品DB",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1039A9LWNXTwSzawEPTwraOPf0mp2ry2qQOGt1UV2zMU/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1734738463,
+          "mode": "list",
+          "cachedResultName": "フォーム形式の回答",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1039A9LWNXTwSzawEPTwraOPf0mp2ry2qQOGt1UV2zMU/edit#gid=1734738463"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "管理ID": "={{ $json[\"管理ID\"] }}",
+            "status": "order done"
+          },
+          "matchingColumns": [
+            "管理ID"
+          ],
+          "schema": [
+            {
+              "id": "商品名",
+              "displayName": "商品名",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "URL",
+              "displayName": "URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "金額",
+              "displayName": "金額",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "商品個数",
+              "displayName": "商品個数",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "主催者希望数量",
+              "displayName": "主催者希望数量",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "主催者",
+              "displayName": "主催者",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PayPayID",
+              "displayName": "PayPayID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "タイムスタンプ",
+              "displayName": "タイムスタンプ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "管理ID",
+              "displayName": "管理ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "ユーザーID",
+              "displayName": "ユーザーID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -1200,
+        2416
+      ],
+      "id": "9a854af9-b57e-467d-8af3-49506ea150de",
+      "name": "主催者状態入力",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "ESQkIlB0QjarIcp3",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1wFfy5P-dJBj7Rr7drsu9SKsyOD-XnLSIKaj72mA5nbQ",
+          "mode": "list",
+          "cachedResultName": "割り勘くん_希望個数DB",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1wFfy5P-dJBj7Rr7drsu9SKsyOD-XnLSIKaj72mA5nbQ/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 520674306,
+          "mode": "list",
+          "cachedResultName": "フォーム形式の回答",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1wFfy5P-dJBj7Rr7drsu9SKsyOD-XnLSIKaj72mA5nbQ/edit#gid=520674306"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "希望者管理ID": "={{ $json[\"希望者管理ID\"] }}",
+            "status": "payment done"
+          },
+          "matchingColumns": [
+            "希望者管理ID"
+          ],
+          "schema": [
+            {
+              "id": "希望者希望個数",
+              "displayName": "希望者希望個数",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "希望者",
+              "displayName": "希望者",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "管理ID",
+              "displayName": "管理ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "タイムスタンプ",
+              "displayName": "タイムスタンプ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ユーザーID",
+              "displayName": "ユーザーID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "希望者管理ID",
+              "displayName": "希望者管理ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -1216,
+        1744
+      ],
+      "id": "211c9753-a278-4cb2-9f87-dbb08e475a4f",
+      "name": "希望者状態入力1",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "ESQkIlB0QjarIcp3",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "addLabels",
+        "messageId": "={{ $json.id }}",
+        "labelIds": [
+          "Label_626933869092075054"
+        ]
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        -912,
+        2288
+      ],
+      "id": "163ea923-95a8-4f4e-978a-d4ab70c1df9c",
+      "name": "ラベル添付2",
+      "webhookId": "85f1a0f8-429b-4837-af39-9328ed9db7e2",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "cIFmx5Xe1RQGhorN",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "haya10hikawa@gmail.com",
+        "subject": "={{ $json[\"管理ID\"] }}の注文確定ボタンが押されました。",
+        "emailType": "text",
+        "message": "={{ $json[\"管理ID\"] }}の注文確定ボタンが押されました。\nDB確認・事実確認をお願いします。\n\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        -1072,
+        2288
+      ],
+      "id": "37b8d696-7fa4-4f23-b724-f1d752ee1c26",
+      "name": "Dev向け通知2",
+      "webhookId": "1ab198f2-e330-4f6b-9cad-a9016a7ba1b6",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "cIFmx5Xe1RQGhorN",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        -752,
+        2288
+      ],
+      "id": "db08cbf8-4011-47df-986b-3a59828d9040",
+      "name": "終了8"
+    },
+    {
+      "parameters": {
+        "content": "## 注文確定確認\n",
+        "height": 544,
+        "width": 1616
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -2144,
+        2224
+      ],
+      "typeVersion": 1,
+      "id": "8fdeab80-3357-4903-9ed9-cefd43487985",
+      "name": "Sticky Note8"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "38126a56-cc48-4db3-b9e4-46cfaabbfd4e",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "empty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -1792,
+        720
+      ],
+      "id": "65fb72b4-86a6-4e77-a8e2-22d3249e94b5",
+      "name": "If1"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        -1600,
+        864
+      ],
+      "id": "5f3586e6-681a-4329-87dc-823dc7edb2fb",
+      "name": "終了9"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        -1504,
+        1216
+      ],
+      "id": "117f05fb-834b-4b7f-a528-f0eb27ba958b",
+      "name": "終了10"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "9f5d0fa9-2b93-4fbb-b02e-211abe7d13b5",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "empty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -1712,
+        1040
+      ],
+      "id": "8afa3fb3-e257-4ce4-947a-07cd0699fa54",
+      "name": "If2"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/1wFfy5P-dJBj7Rr7drsu9SKsyOD-XnLSIKaj72mA5nbQ/edit?gid=520674306#gid=520674306",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 520674306,
+          "mode": "list",
+          "cachedResultName": "フォーム形式の回答",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1wFfy5P-dJBj7Rr7drsu9SKsyOD-XnLSIKaj72mA5nbQ/edit#gid=520674306"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -1952,
+        720
+      ],
+      "id": "9cc18984-7d76-4b86-8db6-65e381b6da99",
+      "name": "希望個数DB1",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "ESQkIlB0QjarIcp3",
+          "name": "Google Sheets account 2"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "総量計算",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "総量計算": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "商品DB",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "希望個数DB1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "データ整形2": {
+      "main": [
+        [
+          {
+            "node": "希望数総量計算1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "希望数総量計算1": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "等しいか否か": {
+      "main": [
+        [
+          {
+            "node": "単位価格の計算",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "超過量計算",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "単位価格の計算": {
+      "main": [
+        [
+          {
+            "node": "ユーザー単位展開",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "商品DB": {
+      "main": [
+        [
+          {
+            "node": "If2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a message2": {
+      "main": [
+        []
+      ]
+    },
+    "以上か否か": {
+      "main": [
+        [
+          {
+            "node": "終了通知用加工",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "等しいか否か",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "終了1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "超過量計算": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "終了通知用加工": {
+      "main": [
+        [
+          {
+            "node": "スレッド終了通知",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "スレッドタイムスタンプ取得": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Edit Fields1": {
+      "main": [
+        [
+          {
+            "node": "以上か否か",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "スレッド終了通知": {
+      "main": [
+        [
+          {
+            "node": "終了",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ユーザー単位展開": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "個別DM送信用",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "終了5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "希望者DM送信": {
+      "main": [
+        [
+          {
+            "node": "Dev向け通知",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items1": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append row in sheet": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ラベル添付": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "個別DM送信用": {
+      "main": [
+        [
+          {
+            "node": "終了3",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "希望者DM送信",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dev向け通知": {
+      "main": [
+        [
+          {
+            "node": "ラベル添付",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge1": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "希望者状態入力",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "希望者状態入力": {
+      "main": [
+        [
+          {
+            "node": "個別DM送信用",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "希望個数DB": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [
+          {
+            "node": "希望個数DB",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "希望者状態入力1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "Merge2",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "商品DB1": {
+      "main": [
+        [
+          {
+            "node": "Merge2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge2": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript2": {
+      "main": [
+        [
+          {
+            "node": "希望者DM送信1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dev向け通知1": {
+      "main": [
+        [
+          {
+            "node": "ラベル添付1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "希望者DM送信1": {
+      "main": [
+        [
+          {
+            "node": "Dev向け通知1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ラベル添付1": {
+      "main": [
+        [
+          {
+            "node": "終了6",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "入力アクション": {
+      "main": [
+        [
+          {
+            "node": "データ整形",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "商品DB1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "入力アクション1": {
+      "main": [
+        [
+          {
+            "node": "データ整形1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "データ整形": {
+      "main": [
+        [
+          {
+            "node": "payment_done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "payment_done": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "終了4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "データ整形1": {
+      "main": [
+        [
+          {
+            "node": "purchase_done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "purchase_done": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "終了7",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items2": {
+      "main": [
+        [
+          {
+            "node": "Dev向け通知2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "主催者状態入力",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "主催者状態入力": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "希望者状態入力1": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ラベル添付2": {
+      "main": [
+        [
+          {
+            "node": "終了8",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dev向け通知2": {
+      "main": [
+        [
+          {
+            "node": "ラベル添付2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "データ整形2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "終了9",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If2": {
+      "main": [
+        [
+          {
+            "node": "スレッドタイムスタンプ取得",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "終了10",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "希望個数DB1": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "38bb2c98-456d-46c6-a938-a5940d3eb692",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "cdb4ee2aea69cc6a83331bbe96dc2caa9a299d21329efb0336fc02a82e1839a8"
+  },
+  "id": "ZtLSlMG3oAtETN3E",
+  "tags": []
+}
